@@ -9,18 +9,18 @@ import (
     "time"
 )
 
-const SIZE = 64
-const PATTERN_WIDTH = 8
-const PATTERN_HEIGHT = 13
+const WORLD_SIZE = 32
+const PATTERN_WIDTH = 10
+const PATTERN_HEIGHT = 10
 const CELL_CHANCE = 0.3
-const ITERATIONS = 50
-const THREADS = 3
+const ITERATIONS = 3
+const THREADS = 4
 const MIN_LIVING_CELLS = 16
 
-const MIRROR = true
+const MIRROR = false
 
 type Universe struct {
-    cells   [64][64]int
+    cells   [WORLD_SIZE][WORLD_SIZE]int
     left    int
     right   int
     top     int
@@ -99,20 +99,12 @@ func search(thread int, my_querychan chan bool) {
                 if work.left - initial.left == work.right - initial.right {         // Check width
                     if work.top - initial.top == work.bottom - initial.bottom {     // Check height
                         if work.top != initial.top || work.left != initial.left {   // Check for movement
-
                             if compare(&work, &initial) {
-                                if MIRROR && n == 3 && (work.bottom - initial.bottom == -2 || work.bottom - initial.bottom == 2) {
-                                    Console_MUTEX.Lock()
-                                    fmt.Printf("(found common spaceship)\n")
-                                    Console_MUTEX.Unlock()
-                                    break
-                                } else {
-                                    Console_MUTEX.Lock()
-                                    fmt.Printf("Thread %d, #%d... Period: %d, x: %d, y: %d\n", thread, attempt, n + 1, work.left - initial.left, work.top - initial.top)
-                                    initial.dump()
-                                    Console_MUTEX.Unlock()
-                                    break
-                                }
+                                Console_MUTEX.Lock()
+                                fmt.Printf("Thread %d, #%d... Period: %d, x: %d, y: %d\n", thread, attempt, n + 1, work.left - initial.left, work.top - initial.top)
+                                initial.dump()
+                                Console_MUTEX.Unlock()
+                                break
                             }
                         }
                     }
@@ -124,8 +116,7 @@ func search(thread int, my_querychan chan bool) {
 
         case <- my_querychan:
             Console_MUTEX.Lock()
-            initial.dump()
-            work.dump()
+            double_dump(&initial, &work)
             Console_MUTEX.Unlock()
         default:
 
@@ -136,10 +127,10 @@ func search(thread int, my_querychan chan bool) {
 
 func (self *Universe) iterate() error {
 
-    var newcells [SIZE][SIZE]int
-    var newleft, newright, newtop, newbottom = SIZE, -1, SIZE, -1
+    var newcells [WORLD_SIZE][WORLD_SIZE]int
+    var newleft, newright, newtop, newbottom = WORLD_SIZE, -1, WORLD_SIZE, -1
 
-    if self.left < 2 || self.right > SIZE - 3 || self.top < 2 || self.bottom > SIZE - 3 {
+    if self.left < 2 || self.right > WORLD_SIZE - 3 || self.top < 2 || self.bottom > WORLD_SIZE - 3 {
         return fmt.Errorf("iterate: pattern was at array border")
     }
 
@@ -219,8 +210,8 @@ func (self *Universe) dump() {
 
 func (self *Universe) clear_cells() {       // Note: doesn't fix left/right/top/bottom vars
 
-    for x := 0 ; x < SIZE ; x++ {
-        for y := 0 ; y < SIZE ; y++ {
+    for x := 0 ; x < WORLD_SIZE ; x++ {
+        for y := 0 ; y < WORLD_SIZE ; y++ {
             self.cells[x][y] = 0
         }
     }
@@ -233,9 +224,9 @@ func (self *Universe) setup_random() {
 
     self.clear_cells()
 
-    self.left = SIZE / 2 - PATTERN_WIDTH / 2
+    self.left = WORLD_SIZE / 2 - PATTERN_WIDTH / 2
     self.right = self.left + PATTERN_WIDTH - 1
-    self.top = SIZE / 2 - PATTERN_HEIGHT / 2
+    self.top = WORLD_SIZE / 2 - PATTERN_HEIGHT / 2
     self.bottom = self.top + PATTERN_HEIGHT - 1
 
     for x := self.left ; x <= self.right ; x++ {
@@ -253,12 +244,12 @@ func (self *Universe) setup_mirror_x() {
 
     self.clear_cells()
 
-    self.left = SIZE / 2 - PATTERN_WIDTH / 2
+    self.left = WORLD_SIZE / 2 - PATTERN_WIDTH / 2
     self.right = self.left + PATTERN_WIDTH - 1
-    self.top = SIZE / 2 - PATTERN_HEIGHT / 2
+    self.top = WORLD_SIZE / 2 - PATTERN_HEIGHT / 2
     self.bottom = self.top + PATTERN_HEIGHT - 1
 
-    for x := self.left ; x < (SIZE) / 2 + 1; x++ {
+    for x := self.left ; x < (WORLD_SIZE) / 2 + 1; x++ {
         for y := self.top ; y <= self.bottom ; y++ {
             if rand.Float32() < CELL_CHANCE {
                 self.cells[x][y] = 1
@@ -267,53 +258,6 @@ func (self *Universe) setup_mirror_x() {
             }
         }
     }
-}
-
-
-func (self *Universe) setup_copperhead() {
-
-    // This function creates a c/10 orthogonal spaceship, it can be used
-    // to test that the detection function is really working.
-
-    self.clear_cells()
-
-    self.count = 28
-
-    // There's gotta be a nicer way to do this...
-
-    self.cells[22][21] = 1
-    self.cells[23][21] = 1
-    self.cells[26][21] = 1
-    self.cells[27][21] = 1
-    self.cells[24][22] = 1
-    self.cells[25][22] = 1
-    self.cells[24][23] = 1
-    self.cells[25][23] = 1
-    self.cells[21][24] = 1
-    self.cells[23][24] = 1
-    self.cells[26][24] = 1
-    self.cells[28][24] = 1
-    self.cells[21][25] = 1
-    self.cells[28][25] = 1
-    self.cells[21][27] = 1
-    self.cells[28][27] = 1
-    self.cells[22][28] = 1
-    self.cells[23][28] = 1
-    self.cells[26][28] = 1
-    self.cells[27][28] = 1
-    self.cells[23][29] = 1
-    self.cells[24][29] = 1
-    self.cells[25][29] = 1
-    self.cells[26][29] = 1
-    self.cells[24][31] = 1
-    self.cells[25][31] = 1
-    self.cells[24][32] = 1
-    self.cells[25][32] = 1
-
-    self.left = 21
-    self.right = 28
-    self.top = 21
-    self.bottom = 32
 }
 
 
@@ -328,4 +272,36 @@ func compare(one *Universe, two *Universe) bool {       // Assumes patterns have
         }
     }
     return true
+}
+
+
+func double_dump(one *Universe, two *Universe) {
+
+    var s string
+
+    for y := 0 ; y < WORLD_SIZE ; y++ {
+        for x := 0 ; x < WORLD_SIZE ; x++ {
+            if one.cells[x][y] != 0 {
+                s = "O"
+            } else {
+                s = "."
+            }
+            fmt.Printf("%s", s)
+        }
+
+        fmt.Printf("   ")
+
+        for x := 0 ; x < WORLD_SIZE ; x++ {
+            if two.cells[x][y] != 0 {
+                s = "O"
+            } else {
+                s = "."
+            }
+            fmt.Printf("%s", s)
+        }
+
+        fmt.Printf("\n")
+    }
+
+    fmt.Printf("\n")
 }
