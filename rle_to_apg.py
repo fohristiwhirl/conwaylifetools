@@ -46,7 +46,11 @@ def parse_rle(infile):
             if c == "$":
                 if len(worldlines[-1]) > maxlen:
                     maxlen = len(worldlines[-1])
-                worldlines.append([])
+                if number == 0:
+                    number = 1
+                for n in range(number):
+                    worldlines.append([])
+                number = 0
 
     for line in worldlines:
         missing = maxlen - len(line)
