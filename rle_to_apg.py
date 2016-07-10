@@ -9,7 +9,7 @@ import sys
 encoding = "0123456789abcdefghijklmnopqrstuv"
 
 
-def parse_rle(infile):
+def parse_rle(s):
 
     # Note that, when parsing numbers, they can be more than one character long
 
@@ -19,7 +19,9 @@ def parse_rle(infile):
 
     number = 0      # How many cells to add. If 0 then 1 is used.
 
-    for line in infile:
+    lines = s.splitlines()
+
+    for line in lines:
         if line.startswith("#"):
             continue
 
@@ -119,11 +121,14 @@ def world_to_apg(world):
 
 
 def main():
-    f = open(sys.argv[1])
-    world = parse_rle(f)
+    with open(sys.argv[1]) as infile:
+        s = infile.read()
+
+    world = parse_rle(s)
     print_world(world)
     result = world_to_apg(world)
     print(result)
+
     input()
 
 
