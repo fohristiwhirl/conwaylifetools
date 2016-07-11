@@ -1,4 +1,5 @@
 // An alternative shipsearcher, but seems slower for whatever reason
+// (Surely part of it is that it has no internal left/right boundaries)
 
 package main
 
