@@ -9,13 +9,13 @@ import (
     "time"
 )
 
-const WORLD_SIZE = 32
-const PATTERN_WIDTH = 10
-const PATTERN_HEIGHT = 10
+const WORLD_SIZE = 48
+const PATTERN_WIDTH = 8
+const PATTERN_HEIGHT = 8
 const CELL_CHANCE = 0.3
-const ITERATIONS = 3
+const ITERATIONS = 12
 const THREADS = 4
-const MIN_LIVING_CELLS = 16
+const MIN_LIVING_CELLS = 15
 
 const MIRROR = false
 
@@ -42,7 +42,7 @@ func main() {
     }
 
     for n := 0 ; n < THREADS ; n++ {
-        go search(n, QueryChan[n])
+        go random_search(n, QueryChan[n])
     }
 
     reader := bufio.NewReader(os.Stdin)
@@ -58,7 +58,7 @@ func main() {
 }
 
 
-func search(thread int, my_querychan chan bool) {
+func random_search(thread int, my_querychan chan bool) {
 
     var attempt int = 0
     var work, initial Universe
@@ -72,11 +72,12 @@ func search(thread int, my_querychan chan bool) {
         } else {
             work.setup_random()
         }
-        work.iterate()          // Iterate at least once to clear out the junk
+
+        work.iterate()          // Iterate at least once to clear out the junk and get real values for .top, .bottom, .left, .right
         work.iterate()          // But a few times more in case we got some useful precursor
         work.iterate()
 
-        if work.count <= MIN_LIVING_CELLS {
+        if work.count < MIN_LIVING_CELLS {
             continue
         }
 
@@ -84,12 +85,7 @@ func search(thread int, my_querychan chan bool) {
 
         for n := 0; n < ITERATIONS; n++ {
 
-            err := work.iterate()
-
-            if err != nil {
-                // fmt.Printf("(pattern reached wall)\n")
-                break
-            }
+            work.iterate()
 
             if work.count < MIN_LIVING_CELLS {
                 break
@@ -116,6 +112,7 @@ func search(thread int, my_querychan chan bool) {
 
         case <- my_querychan:
             Console_MUTEX.Lock()
+            fmt.Printf("(failed) attempt #%d\n", attempt)
             double_dump(&initial, &work)
             Console_MUTEX.Unlock()
         default:
@@ -125,13 +122,27 @@ func search(thread int, my_querychan chan bool) {
 }
 
 
-func (self *Universe) iterate() error {
+func (self *Universe) iterate() {
+
+    // This doesn't change the cells at the world border
 
     var newcells [WORLD_SIZE][WORLD_SIZE]int
     var newleft, newright, newtop, newbottom = WORLD_SIZE, -1, WORLD_SIZE, -1
 
-    if self.left < 2 || self.right > WORLD_SIZE - 3 || self.top < 2 || self.bottom > WORLD_SIZE - 3 {
-        return fmt.Errorf("iterate: pattern was at array border")
+    // Because the actual algorithm goes 1 wider than the internal boundary, and then considers a further 1 cell,
+    // the following is both necessary and acceptable.
+
+    if self.left < 2 {
+        self.left = 2
+    }
+    if self.right > WORLD_SIZE - 3 {
+        self.right = WORLD_SIZE - 3
+    }
+    if self.top < 2 {
+        self.top = 2
+    }
+    if self.bottom > WORLD_SIZE - 3 {
+        self.bottom = WORLD_SIZE - 3
     }
 
     for x := self.left - 1 ; x <= self.right + 1 ; x++ {
@@ -184,8 +195,6 @@ func (self *Universe) iterate() error {
     self.right = newright
     self.top = newtop
     self.bottom = newbottom
-
-    return nil
 }
 
 
@@ -253,8 +262,13 @@ func (self *Universe) setup_mirror_x() {
         for y := self.top ; y <= self.bottom ; y++ {
             if rand.Float32() < CELL_CHANCE {
                 self.cells[x][y] = 1
-                self.cells[self.right - (x - self.left)][y] = 1
-                self.count += 2
+                self.count += 1
+
+                other_x := self.right - (x - self.left)
+                if other_x != x {                           // Can be false if odd pattern width and we are on midline
+                    self.cells[other_x][y] = 1
+                    self.count += 1
+                }
             }
         }
     }
@@ -278,6 +292,8 @@ func compare(one *Universe, two *Universe) bool {       // Assumes patterns have
 func double_dump(one *Universe, two *Universe) {
 
     var s string
+
+    fmt.Printf("%d %d %d %d - %d %d %d %d\n", one.left, one.top, one.right, one.bottom, two.left, two.top, two.right, two.bottom)
 
     for y := 0 ; y < WORLD_SIZE ; y++ {
         for x := 0 ; x < WORLD_SIZE ; x++ {
@@ -303,5 +319,5 @@ func double_dump(one *Universe, two *Universe) {
         fmt.Printf("\n")
     }
 
-    fmt.Printf("\n")
+    fmt.Printf("Counts: %d, %d\n", one.count, two.count)
 }
